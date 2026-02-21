@@ -13,13 +13,16 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        DB::connectUsing('pgsql', [
-            'driver' => 'pgsql',
-            'host' => 'localhost',
-            'port' => '5432',
-            'username' => 'ludwig',
-            'password' => 'some-random-password-8891',
-            'database' => 'harbingerdb'
+        DB::table('demo')->insert([
+            'code' => 'P-2048',
+            'name' => 'Barang 2048-bit',
+            'price' => fake()->numerify(str_repeat('#', 617)),
+        ]);
+
+        DB::table('demo')->insert([
+            'code' => 'P-4096',
+            'name' => 'Barang 4096-bit',
+            'price' => fake()->numerify(str_repeat('#', 1233)),
         ]);
     }
 }

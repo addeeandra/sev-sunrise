@@ -3,9 +3,9 @@ services:
     image: postgres:18-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ludwig
-      POSTGRES_PASSWORD: some-random-password-8891
-      POSTGRES_DB: harbingerdb
+      POSTGRES_USER: ${DB_PGSQL_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PGSQL_PASSWORD}
+      POSTGRES_DB: ${DB_PGSQL_DATABASE}
     ports:
       - "${DB_PGSQL_PORT:-5432}:5432"
     volumes:
@@ -17,12 +17,12 @@ services:
     image: mariadb:12.1
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: some-random-password-6671
-      MYSQL_DATABASE: harbingerdb
-      MYSQL_USER: wolfgang
-      MYSQL_PASSWORD: some-random-password-0019
+      MYSQL_ROOT_PASSWORD: ${DB_MARIA_PASSWORD}
+      MYSQL_DATABASE: ${DB_MARIA_DATABASE}
+      MYSQL_USER: ${DB_MARIA_USERNAME}
+      MYSQL_PASSWORD: ${DB_MARIA_PASSWORD}
     ports:
-      - "3306:3306"
+      - "${DB_MARIA_PORT:-3306}:3306"
     volumes:
       - mariadbdata:/var/lib/mysql
     networks:
@@ -32,24 +32,24 @@ services:
     image: mysql:8.4
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: some-random-password-7811
-      MYSQL_DATABASE: harbingerdb
-      MYSQL_USER: vivaldi
-      MYSQL_PASSWORD: some-random-password-6711
+      MYSQL_ROOT_PASSWORD: ${DB_MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${DB_MYSQL_DATABASE}
+      MYSQL_USER: ${DB_MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${DB_MYSQL_PASSWORD}
     ports:
-      - "3307:3306"
+      - "${DB_MYSQL_PORT:-3306}:3306"
     volumes:
       - mysqldata:/var/lib/mysql
     networks:
       - harbingernet
 
   adminer:
-      image: adminer:latest
-      restart: unless-stopped
-      ports:
-        - "8080:8080"
-      networks:
-        - harbingernet
+    image: adminer:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    networks:
+      - harbingernet
 
 volumes:
   pgdata:
