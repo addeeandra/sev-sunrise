@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: some-random-password-8891
       POSTGRES_DB: harbingerdb
     ports:
-      - "5432:5432"
+      - "${DB_PGSQL_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
