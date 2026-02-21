@@ -30,3 +30,5 @@ Begini alur POC yang dilakukan:
 Penyimpanan ke database dalam bentuk VARCHAR karena bahasa lain bisa secara kompatibel menerapkan bit-operations dan carrying melalui string yang diterima.
 
 Kekurangan dari metode ini adalah tidak bisa melakukan operasi aritmatika langsung di database, misalnya `SELECT SUM(price) as total_price FROM demo`; tidak akan memungkinkan.
+
+Jika membutuhkan database operations, Postgresql sendiri secara native mendukung NUMERIC yang bisa menyimpan hingga 131rb digit. Jika 4096-bit adalah 1233 digit, NUMERIC di Postgres mendukung 100x lebih banyak digit.
