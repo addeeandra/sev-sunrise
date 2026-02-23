@@ -20,6 +20,13 @@ class TimelineController extends Controller
             ->orderByDesc('id')
             ->cursorPaginate(15);
 
+        if ($entries->isEmpty()) {
+            // dispatch silently, for immediate response, shown after refresh.
+            FanInTimelineJob::dispatch($user);
+
+            return TimelineEntryResource::collection(collect());
+        }
+
         return TimelineEntryResource::collection($entries);
     }
 }
