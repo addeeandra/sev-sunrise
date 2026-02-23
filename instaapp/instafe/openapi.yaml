@@ -1,0 +1,513 @@
+openapi: 3.0.3
+info:
+  title: Instabe API
+  description: Instagram-like social media API built with Laravel, Sanctum & Fortify.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8085/api
+    description: Local development
+
+tags:
+  - name: Auth
+    description: Authentication (Fortify)
+  - name: Posts
+    description: Create, view, and delete posts
+  - name: Likes
+    description: Like / unlike posts
+  - name: Comments
+    description: Post comments
+  - name: Timeline
+    description: User timeline feed
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Sanctum Bearer token returned from login or register.
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: John Doe
+        email:
+          type: string
+          format: email
+          example: john@example.com
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00.000000Z"
+
+    PostImage:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        image_url:
+          type: string
+          format: uri
+          example: http://localhost/storage/post-images/abc123.jpg
+        order:
+          type: integer
+          example: 0
+
+    Post:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        text:
+          type: string
+          nullable: true
+          example: "Beautiful sunset today!"
+        user:
+          $ref: "#/components/schemas/User"
+        images:
+          type: array
+          items:
+            $ref: "#/components/schemas/PostImage"
+        likes_count:
+          type: integer
+          example: 42
+        comments_count:
+          type: integer
+          example: 5
+        liked_by_me:
+          type: boolean
+          example: false
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00.000000Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00.000000Z"
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        body:
+          type: string
+          example: "Nice photo!"
+        user:
+          $ref: "#/components/schemas/User"
+        post_id:
+          type: integer
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00.000000Z"
+
+    TimelineEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        post:
+          $ref: "#/components/schemas/Post"
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00.000000Z"
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          example: "1|abc123def456..."
+        user:
+          $ref: "#/components/schemas/User"
+
+    LikeResponse:
+      type: object
+      properties:
+        liked:
+          type: boolean
+          example: true
+        likes_count:
+          type: integer
+          example: 43
+
+    CursorPaginationMeta:
+      type: object
+      properties:
+        path:
+          type: string
+          example: http://localhost/api/posts/1/comments
+        per_page:
+          type: integer
+          example: 15
+        next_cursor:
+          type: string
+          nullable: true
+          example: "eyJpZCI6MTUsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
+        next_page_url:
+          type: string
+          nullable: true
+          format: uri
+          example: "http://localhost/api/posts/1/comments?cursor=eyJpZCI6MTUsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
+        prev_cursor:
+          type: string
+          nullable: true
+        prev_page_url:
+          type: string
+          nullable: true
+          format: uri
+
+    ValidationError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "The given data was invalid."
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            body:
+              - "Comment body is required."
+
+  parameters:
+    PostId:
+      name: post
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: Post ID
+      example: 1
+
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+      description: Cursor for pagination
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password, password_confirmation]
+              properties:
+                name:
+                  type: string
+                  maxLength: 255
+                  example: John Doe
+                email:
+                  type: string
+                  format: email
+                  maxLength: 255
+                  example: john@example.com
+                password:
+                  type: string
+                  format: password
+                  example: secret123
+                password_confirmation:
+                  type: string
+                  format: password
+                  example: secret123
+      responses:
+        "201":
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in with email and password
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: john@example.com
+                password:
+                  type: string
+                  format: password
+                  example: secret123
+      responses:
+        "200":
+          description: Logged in successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "422":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get the authenticated user
+      operationId: me
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Authenticated user details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthenticated
+
+  /posts:
+    post:
+      tags: [Posts]
+      summary: Create a new post
+      operationId: storePost
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [images]
+              properties:
+                text:
+                  type: string
+                  nullable: true
+                  maxLength: 2200
+                  description: Post caption text
+                images:
+                  type: array
+                  minItems: 1
+                  maxItems: 10
+                  items:
+                    type: string
+                    format: binary
+                  description: "Image files (jpeg, png, gif, webp; max 10 MB each)"
+      responses:
+        "201":
+          description: Post created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Post"
+        "401":
+          description: Unauthenticated
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+
+  /posts/{post}:
+    get:
+      tags: [Posts]
+      summary: Get a single post
+      operationId: showPost
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+      responses:
+        "200":
+          description: Post details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Post"
+        "401":
+          description: Unauthenticated
+        "404":
+          description: Post not found
+
+    delete:
+      tags: [Posts]
+      summary: Delete a post
+      operationId: destroyPost
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+      responses:
+        "204":
+          description: Post deleted
+        "401":
+          description: Unauthenticated
+        "403":
+          description: Forbidden (not the post owner)
+        "404":
+          description: Post not found
+
+  /posts/{post}/like:
+    post:
+      tags: [Likes]
+      summary: Toggle like on a post
+      description: Likes the post if not already liked, unlikes if already liked.
+      operationId: toggleLike
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+      responses:
+        "200":
+          description: Like toggled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeResponse"
+        "401":
+          description: Unauthenticated
+        "404":
+          description: Post not found
+
+  /posts/{post}/comments:
+    get:
+      tags: [Comments]
+      summary: List comments on a post
+      operationId: indexComments
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: Paginated list of comments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Comment"
+                  meta:
+                    $ref: "#/components/schemas/CursorPaginationMeta"
+        "401":
+          description: Unauthenticated
+        "404":
+          description: Post not found
+
+    post:
+      tags: [Comments]
+      summary: Add a comment to a post
+      operationId: storeComment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body:
+                  type: string
+                  maxLength: 2200
+                  example: "Nice photo!"
+      responses:
+        "201":
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Comment"
+        "401":
+          description: Unauthenticated
+        "404":
+          description: Post not found
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+
+  /timeline:
+    get:
+      tags: [Timeline]
+      summary: Get the authenticated user's timeline
+      operationId: timeline
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: Paginated timeline entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TimelineEntry"
+                  meta:
+                    $ref: "#/components/schemas/CursorPaginationMeta"
+        "401":
+          description: Unauthenticated
