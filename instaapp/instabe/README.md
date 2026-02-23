@@ -19,3 +19,8 @@ docker buildx build -t instapp:main \
 4. Access `http://localhost:8085/up` or depends on `DOCKER_PORT` you set.
 5. You may access swagger at `http://localhost:4505`
 6. Finally, run `./nge artisan migrate` to run migrations.
+
+## For Development
+
+1. Copy `.env.example` and setup neccessary database, or use sqlite
+2. Run `composer dev`
