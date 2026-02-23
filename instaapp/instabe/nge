@@ -1,0 +1,318 @@
+#!/bin/bash
+set -Eeo pipefail
+set -o errexit    # Used to exit upon error, avoiding cascading errors
+
+IFS=$'\n\t'
+
+RED="31"
+GREEN="32"
+YELLOW="33"
+BOLDGREEN="\e[1;${GREEN}m"
+ITALICRED="\e[3;${RED}m"
+BOLDYELLOW="\e[1;${YELLOW}m"
+NC="\e[0m"
+
+# read .env file
+set -o allexport
+source .env set
+set +o allexport
+
+DOCKER_USER="${DOCKER_USER:-dokar}"
+DOCKER_PUID="${DOCKER_PUID:-1000}"
+DOCKER_PGID="${DOCKER_PGID:-1000}"
+
+ENABLE_WEB="${ENABLE_WEB:-true}"
+ENABLE_HORIZON="${ENABLE_HORIZON:-true}"
+ENABLE_SCHEDULER="${ENABLE_SCHEDULER:-true}"
+
+# usage: file_env VAR [DEFAULT]
+#    ie: file_env 'XYZ_DB_PASSWORD' 'example'
+# (will allow for "$XYZ_DB_PASSWORD_FILE" to fill in the value of
+#  "$XYZ_DB_PASSWORD" from a file, especially for Docker's secrets feature)
+file_env() {
+	local var="$1"
+	local fileVar="${var}_FILE"
+	local def="${2:-}"
+	if [ "${!var:-}" ] && [ "${!fileVar:-}" ]; then
+		echo >&2 "error: both $var and $fileVar are set (but are exclusive)"
+		exit 1
+	fi
+	local val="$def"
+	if [ "${!var:-}" ]; then
+		val="${!var}"
+	elif [ "${!fileVar:-}" ]; then
+		val="$(< "${!fileVar}")"
+	fi
+	export "$var"="$val"
+	unset "$fileVar"
+}
+
+install() {
+	echo "installing in 5 seconds"
+	sleep 5
+
+    compose pull
+    start
+}
+
+start() {
+    local active=$(get_active_color)
+    local idle=$(get_idle_color)
+
+    printf "${BOLDGREEN}→${NC} Starting application on active service: \e[${GREEN}m$active${NC}\n"
+
+    local services=()
+    if [ "$ENABLE_WEB" = "true" ]; then
+        services+=("gateway" "$active")
+    fi
+    if [ "$ENABLE_HORIZON" = "true" ]; then
+        services+=("horizon")
+    fi
+    if [ "$ENABLE_SCHEDULER" = "true" ]; then
+        services+=("scheduler")
+    fi
+
+    # Start specific services
+    if [ ${#services[@]} -gt 0 ]; then
+        compose up -d "${services[@]}"
+    fi
+
+    # Ensure idle service is stopped (only if web is enabled)
+    if [ "$ENABLE_WEB" = "true" ]; then
+        printf "${BOLDYELLOW}→${NC} Ensuring idle service ($idle) is stopped...\n"
+        compose stop $idle
+    fi
+}
+
+compose() {
+    printf "${BOLDYELLOW}→${NC} run docker compose\n"
+    docker compose $@
+}
+
+_compose() {
+    docker compose $@
+}
+
+get_active_color() {
+    # Ensure upstream config exists, default to blue
+    if [ ! -f .docker/gateway/upstream.conf ]; then
+        mkdir -p .docker/gateway
+        printf "upstream core {\n    server core-blue:80;\n    keepalive 64;\n}\n" > .docker/gateway/upstream.conf
+    fi
+
+    if grep -q "core-blue" .docker/gateway/upstream.conf; then
+        echo "core-blue"
+    else
+        echo "core-green"
+    fi
+}
+
+get_idle_color() {
+    if [ "$(get_active_color)" == "core-blue" ]; then
+        echo "core-green"
+    else
+        echo "core-blue"
+    fi
+}
+
+composer() {
+    local service=$(get_active_color)
+    printf "${BOLDGREEN}→${NC} run composer on user : ${DOCKER_USER} (service: $service)\n"
+    compose run --rm --user=${DOCKER_USER} $service composer $@
+}
+
+shell() {
+    local service=$(get_active_color)
+    printf "${BOLDGREEN}→${NC} run shell on user : ${DOCKER_USER} (service: $service)\n"
+    compose run --rm --user=${DOCKER_USER} $service bash
+}
+
+php() {
+    local service=$(get_active_color)
+    printf "${BOLDGREEN}→${NC} run php on user : ${DOCKER_USER} (service: $service)\n"
+    compose run --rm --user=${DOCKER_USER} $service php $@
+}
+
+artisan() {
+    local service=$(get_active_color)
+    printf "${BOLDGREEN}→${NC} run artisan on user : ${DOCKER_USER} (service: $service)\n"
+    # docker compose exec -e HOME=/home/${DOCKER_USER:-dokar} core runuser --preserve-environment -u ${DOCKER_USER:-dokar} /usr/bin/php /var/www/artisan $@
+    php artisan $@
+}
+
+a() {
+  artisan $@
+}
+
+build() {
+    compose build core-blue
+}
+
+up() {
+    if [ ! -f .docker/gateway/upstream.conf ]; then
+        mkdir -p .docker/gateway
+        printf "upstream core {\n    server core-blue:80;\n    keepalive 64;\n}\n" > .docker/gateway/upstream.conf
+    fi
+    
+    echo "Nge up service $@..."
+    compose up -d $@
+}
+
+down() {
+    echo "Nge down all service..."
+    compose down
+}
+
+check() {
+    compose ps
+}
+
+code:update() {
+    printf "${BOLDYELLOW}Does this update require downtime? (y/N)${NC} "
+    read -r response
+    if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+        update:downtime
+    else
+        update:zero_downtime
+    fi
+}
+
+update:downtime() {
+    local active=$(get_active_color)
+    printf "${BOLDYELLOW}→${NC} Update with downtime on $active...\n"
+
+    compose pull --ignore-pull-failures $active artisan
+    artisan down
+
+    # Recreate the active container
+    compose up -d --force-recreate $active
+
+    # Run migrations
+    compose run --rm --user=${DOCKER_USER} artisan php artisan migrate --force
+
+    # Restart workers
+    local workers=()
+    if [ "$ENABLE_HORIZON" = "true" ]; then workers+=("horizon"); fi
+    if [ "$ENABLE_SCHEDULER" = "true" ]; then workers+=("scheduler"); fi
+
+    if [ ${#workers[@]} -gt 0 ]; then
+        compose pull "${workers[@]}"
+        compose up -d "${workers[@]}"
+    fi
+
+    artisan up
+    if [ "$ENABLE_WEB" = "true" ]; then
+        compose restart gateway
+    fi
+}
+
+update:zero_downtime() {
+    local active=$(get_active_color)
+    local idle=$(get_idle_color)
+
+    printf "${BOLDYELLOW}→${NC} Zero-downtime update initiated.\n"
+    printf "Active: \e[${GREEN}m$active${NC}, Target: \e[${GREEN}m$idle${NC}\n"
+
+    # 1. Pull and Start Idle
+    if [ "$ENABLE_WEB" = "true" ]; then
+        printf "${BOLDYELLOW}→${NC} Pulling and starting $idle...\n"
+        compose pull --ignore-pull-failures $idle artisan
+        compose up -d $idle
+
+        # 2. Wait for health
+        printf "${BOLDYELLOW}→${NC} Waiting for $idle to be ready (10s)...\n"
+        sleep 10
+    fi
+
+    # 3. Run Migrations (on the NEW code)
+    printf "${BOLDYELLOW}→${NC} Running migrations...\n"
+    compose run --rm --user=${DOCKER_USER} artisan php artisan migrate --force
+
+    # 4. Switch Traffic
+    if [ "$ENABLE_WEB" = "true" ]; then
+        printf "${BOLDYELLOW}→${NC} Switching traffic to $idle...\n"
+        printf "upstream core {\n    server $idle:80;\n    keepalive 64;\n}\n" > .docker/gateway/upstream.conf
+        _compose exec gateway nginx -s reload
+    fi
+
+    # 5. Restart Workers
+    local workers=()
+    if [ "$ENABLE_HORIZON" = "true" ]; then workers+=("horizon"); fi
+    if [ "$ENABLE_SCHEDULER" = "true" ]; then workers+=("scheduler"); fi
+
+    if [ ${#workers[@]} -gt 0 ]; then
+        compose pull --ignore-pull-failures "${workers[@]}"
+        compose up -d "${workers[@]}"
+    fi
+
+    # 6. Stop Old Active
+    if [ "$ENABLE_WEB" = "true" ]; then
+        printf "${BOLDYELLOW}→${NC} Stopping old service $active...\n"
+        compose stop $active
+    fi
+
+    if [ "$ENABLE_WEB" = "true" ]; then
+        printf "${BOLDGREEN}→${NC} Update complete! Now running on $idle.\n"
+    else
+        printf "${BOLDGREEN}→${NC} Update complete! Workers updated.\n"
+    fi
+}
+
+status() {
+    compose ps --format "table {{.Name}}\t{{.State}}\t{{.Ports}}"
+}
+
+code:reload() {
+    local active=$(get_active_color)
+    artisan down
+
+    local services=()
+    if [ "$ENABLE_WEB" = "true" ]; then services+=("$active"); fi
+    if [ "$ENABLE_HORIZON" = "true" ]; then services+=("horizon"); fi
+    if [ "$ENABLE_SCHEDULER" = "true" ]; then services+=("scheduler"); fi
+
+    if [ ${#services[@]} -gt 0 ]; then
+        compose restart "${services[@]}"
+    fi
+
+    artisan up
+
+    if [ "$ENABLE_WEB" = "true" ]; then
+        compose restart gateway
+    fi
+}
+
+image:upgrade() {
+    compose up -d --force-recreate --remove-orphans
+}
+
+help() {
+  echo "Usage: $0 [COMMAND]"
+  echo "Available commands:"
+  echo "  install       Installs and starts the containers"
+  echo "  start         Starts the app respecting blue/green state"
+  echo "  compose       Wraps docker compose commands"
+  echo "  composer      Runs composer inside the core container"
+  echo "  shell         Opens a bash shell in the core container"
+  echo "  php           Runs a PHP command inside the core container"
+  echo "  artisan, a    Shortcut for artisan commands"
+  echo "  up            Starts specified service(s)"
+  echo "  down          Stops all services"
+  echo "  check         Checks docker-compose status"
+  echo "  status        Prints docker-compose status in a table"
+  echo "  code:update   Update core image, reload code, then run migrate and patch"
+  echo "  code:reload   Puts app in maintenance mode and restarts services"
+  echo "  image:upgrade Force-recreates all (nginx,mysql,redis,...) containers using latest images"
+  echo
+}
+
+# Check if the function exists (bash specific)
+if declare -f "$1" > /dev/null
+then
+  # call arguments verbatim
+  "$@"
+else
+  # Show a helpful error
+  echo "'$1' is not a known function name. See '$0 help' for usage."
+  exit 1
+fi
