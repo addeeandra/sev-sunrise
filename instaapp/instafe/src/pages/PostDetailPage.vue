@@ -2,7 +2,9 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { Post, Comment } from '@/types'
-import { getPost, toggleLike as apiToggleLike } from '@/api/posts'
+import { getPost, toggleLike as apiToggleLike, deletePost } from '@/api/posts'
+import { useAuthStore } from '@/stores/auth'
+import { useTimelineStore } from '@/stores/timeline'
 import ImageCarousel from '@/components/ImageCarousel.vue'
 import LikeButton from '@/components/LikeButton.vue'
 import CommentList from '@/components/CommentList.vue'
@@ -11,6 +13,8 @@ import LoadingSpinner from '@/components/LoadingSpinner.vue'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
+const timeline = useTimelineStore()
 
 const post = ref<Post | null>(null)
 const isLoading = ref(true)
@@ -52,6 +56,18 @@ function handleCommented(comment: Comment) {
   commentList.value?.prepend(comment)
 }
 
+async function handleDelete() {
+  if (!post.value) return
+  if (!confirm('Delete this post?')) return
+  try {
+    await deletePost(post.value.id)
+    timeline.removeEntry(post.value.id)
+    router.replace({ name: 'timeline' })
+  } catch {
+    // silently fail
+  }
+}
+
 function timeAgo(dateStr: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
   if (seconds < 60) return `${seconds}s`
@@ -90,6 +106,15 @@ function timeAgo(dateStr: string): string {
           </div>
           <span class="font-semibold text-sm text-gray-900">{{ post.user.name }}</span>
           <span class="ml-auto text-xs text-gray-400">{{ timeAgo(post.created_at) }}</span>
+          <button
+            v-if="auth.user?.id === post.user.id"
+            @click="handleDelete"
+            class="bg-transparent border-none p-0 cursor-pointer text-gray-400 hover:text-red-500"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
         </div>
 
         <!-- Images -->
@@ -98,7 +123,7 @@ function timeAgo(dateStr: string): string {
         <!-- Actions -->
         <div class="flex items-center gap-4 px-3 py-2">
           <LikeButton
-            :liked="post.liked_by_me"
+            :liked="post.liked_by_me ?? false"
             :count="post.likes_count"
             @toggle="handleToggleLike"
           />

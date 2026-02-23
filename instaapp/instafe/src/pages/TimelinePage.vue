@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useTimelineStore } from '@/stores/timeline'
+import { deletePost } from '@/api/posts'
 import PostCard from '@/components/PostCard.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 
@@ -24,6 +25,16 @@ onMounted(async () => {
     observer.observe(sentinel.value)
   }
 })
+
+async function handleDelete(postId: number) {
+  if (!confirm('Delete this post?')) return
+  try {
+    await deletePost(postId)
+    timeline.removeEntry(postId)
+  } catch {
+    // silently fail if delete fails (e.g. 403/404)
+  }
+}
 </script>
 
 <template>
@@ -42,6 +53,7 @@ onMounted(async () => {
         :key="entry.id"
         :post="entry.post"
         @like="timeline.toggleLike"
+        @delete="handleDelete"
       />
 
       <div ref="sentinel" class="h-1" />

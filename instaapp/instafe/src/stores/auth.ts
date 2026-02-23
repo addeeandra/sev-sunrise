@@ -2,8 +2,11 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { User, LoginRequest, RegisterRequest } from '@/types'
 import * as authApi from '@/api/auth'
+import { useTimelineStore } from './timeline'
 
 export const useAuthStore = defineStore('auth', () => {
+  const timeline = useTimelineStore()
+  
   const user = ref<User | null>(null)
   const token = ref<string | null>(localStorage.getItem('auth_token'))
 
@@ -32,6 +35,8 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     user.value = null
     localStorage.removeItem('auth_token')
+
+    timeline.reset()
   }
 
   async function initialize() {

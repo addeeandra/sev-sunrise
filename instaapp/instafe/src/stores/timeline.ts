@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { TimelineEntry } from '@/types'
+import type { Post, TimelineEntry } from '@/types'
 import { getTimeline } from '@/api/timeline'
 import { toggleLike as apiToggleLike } from '@/api/posts'
 
@@ -55,11 +55,24 @@ export const useTimelineStore = defineStore('timeline', () => {
     }
   }
 
+  function prependEntry(post: Post) {
+    const entry: TimelineEntry = {
+      id: Date.now(),
+      post,
+      created_at: post.created_at,
+    }
+    entries.value.unshift(entry)
+  }
+
+  function removeEntry(postId: number) {
+    entries.value = entries.value.filter((e) => e.post.id !== postId)
+  }
+
   function reset() {
     entries.value = []
     nextCursor.value = null
     isInitialized.value = false
   }
 
-  return { entries, nextCursor, isLoading, isInitialized, hasMore, fetchInitial, fetchMore, toggleLike, reset }
+  return { entries, nextCursor, isLoading, isInitialized, hasMore, fetchInitial, fetchMore, toggleLike, prependEntry, removeEntry, reset }
 })
