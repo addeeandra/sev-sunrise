@@ -1,0 +1,102 @@
+x-logging: &logging
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-core-config: &core-config
+  image: ${DOCKER_IMAGE}:${DOCKER_TAG}
+  user: ${DOCKER_USER:-appuser}
+  logging: *logging
+  restart: unless-stopped
+  volumes:
+    - storage_data:/var/www/storage
+    - psysh:/home/${DOCKER_USER:-appuser}
+  env_file:
+    - .env
+  networks:
+    - app
+
+x-executable: &executable
+  hostname: ${DOCKER_HOSTNAME:-app-imaged-docker}
+  image: ${DOCKER_IMAGE}:${DOCKER_TAG}
+  user: ${DOCKER_USER:-appuser}
+  logging: *logging
+  restart: unless-stopped
+  env_file:
+    - .env
+  environment:
+    - USER=${DOCKER_USER:-appuser}
+    - PUID=${DOCKER_PUID:-1000}
+    - PGID=${DOCKER_PGID:-1000}
+  volumes:
+    - storage_data:/var/www/storage
+  networks:
+    - app
+
+services:
+  gateway:
+    image: nginx:1.29.5
+    restart: unless-stopped
+    volumes:
+      - ./.docker/gateway/main-site.conf:/etc/nginx/conf.d/default.conf
+      - ./.docker/gateway/upstream.conf:/etc/nginx/conf.d/upstream.conf
+    ports:
+      - ${DOCKER_PORT}:80
+    networks:
+      - app
+
+  core-blue:
+    <<: *core-config
+    hostname: core-blue
+
+  core-green:
+    <<: *core-config
+    hostname: core-green
+
+  artisan:
+    <<: *core-config
+    hostname: artisan
+    restart: "no"
+    profiles: ["tools"]
+
+  horizon:
+    <<: *executable
+    command: ["/usr/bin/php", "/var/www/artisan", "horizon"]
+
+  scheduler:
+    <<: *executable
+    command: ["/usr/bin/php", "/var/www/artisan", "schedule:work"]
+
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432" 
+    networks:
+      - app
+
+  redis:
+    image: redis:alpine3.22
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    networks:
+      - app
+
+networks:
+  app:
+    driver: ${DOCKER_NETWORKS_DRIVER}
+
+volumes:
+  storage_data:
+    driver: ${DOCKER_VOLUMES_DRIVER}
+  psysh:
+    driver: ${DOCKER_VOLUMES_DRIVER}
+  db_data:
+    driver: ${DOCKER_VOLUMES_DRIVER}

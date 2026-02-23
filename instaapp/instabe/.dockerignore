@@ -1,0 +1,66 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE and editors
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Node.js
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Build outputs (built in Docker)
+public/build
+public/hot
+
+# PHP dependencies (installed in Docker)
+vendor
+
+# Laravel storage (mounted as volume in production)
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/app/*
+!storage/**/.gitignore
+
+# Testing
+tests
+phpunit.xml
+.phpunit.result.cache
+coverage
+.pest
+
+# Development tools
+.docker
+docker-compose*.yml
+Dockerfile*
+
+# Documentation
+*.md
+!README.md
+docs
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# Misc
+.editorconfig
+.styleci.yml
+*.log
+
+# macOS
+.DS_Store
