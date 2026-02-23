@@ -37,16 +37,18 @@ class PostController extends Controller
 
         $post->load('user', 'images');
         $post->loadCount('likes', 'comments');
+        $post->setAttribute('liked_by_me', false);
 
         return (new PostResource($post))
             ->response()
             ->setStatusCode(201);
     }
 
-    public function show(Post $post): PostResource
+    public function show(Request $request, Post $post): PostResource
     {
         $post->load('user', 'images');
         $post->loadCount('likes', 'comments');
+        $post->setAttribute('liked_by_me', $post->likes()->where('user_id', $request->user()->id)->exists());
 
         return new PostResource($post);
     }

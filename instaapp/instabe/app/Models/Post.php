@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -40,5 +41,12 @@ class Post extends Model
     public function timelineEntries(): HasMany
     {
         return $this->hasMany(TimelineEntry::class);
+    }
+
+    public function scopeWithLikedByMe(Builder $query): void
+    {
+        $query->withExists(['likes as liked_by_me' => function ($query): void {
+            $query->where('user_id', auth()->id());
+        }]);
     }
 }

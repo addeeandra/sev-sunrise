@@ -21,6 +21,7 @@ class PostResource extends JsonResource
             'images' => PostImageResource::collection($this->whenLoaded('images')),
             'likes_count' => $this->whenCounted('likes'),
             'comments_count' => $this->whenCounted('comments'),
+            'liked_by_me' => (bool) $this->liked_by_me,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

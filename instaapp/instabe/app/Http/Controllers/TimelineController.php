@@ -14,7 +14,8 @@ class TimelineController extends Controller
             ->timelineEntries()
             ->with(['post' => function ($query): void {
                 $query->with('user', 'images')
-                    ->withCount('likes', 'comments');
+                    ->withCount('likes', 'comments')
+                    ->withLikedByMe();
             }])
             ->orderByDesc('id')
             ->cursorPaginate(15);
