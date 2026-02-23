@@ -17,3 +17,5 @@ docker buildx build -t instapp:main \
 
 3. Run `docker compose up -d` or `./nge up -d`.
 4. Access `http://localhost:8085/up` or depends on `DOCKER_PORT` you set.
+5. You may access swagger at `http://localhost:4505`
+6. Finally, run `./nge artisan migrate` to run migrations.

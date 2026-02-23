@@ -89,6 +89,18 @@ services:
     networks:
       - app
 
+  swagger:
+    image: swaggerapi/swagger-ui:latest
+    restart: unless-stopped
+    environment:
+      SWAGGER_JSON: /openapi.yaml
+    volumes:
+      - ./openapi.yaml:/openapi.yaml:ro
+    ports:
+      - "127.0.0.1:4505:8080"
+    networks:
+      - app
+
 networks:
   app:
     driver: ${DOCKER_NETWORKS_DRIVER}
